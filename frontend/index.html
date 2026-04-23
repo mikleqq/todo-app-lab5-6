@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>ToDo App + WebSockets</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; display: flex; gap: 40px; }
+        .container { min-width: 400px; }
+        .task-item { border-bottom: 1px solid #eee; padding: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .task-title { cursor: pointer; color: blue; text-decoration: underline; flex-grow: 1; }
+        .task-title:hover { color: darkblue; }
+        .details-box { border: 2px solid #007bff; padding: 20px; border-radius: 8px; width: 300px; height: fit-content; background: #f9f9f9; }
+        input { display: block; margin-bottom: 10px; width: 100%; padding: 8px; }
+        button { cursor: pointer; padding: 6px 12px; margin-right: 5px; margin-bottom: 5px; }
+        .hidden { display: none; }
+        #mailStatus { font-size: 13px; margin-top: 10px; }
+        .ws-status { color: gray; font-size: 12px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Мои задачи</h2>
+    <div id="wsConnectionStatus" class="ws-status">Подключение к WebSocket...</div>
+    
+    <input type="text" id="titleInput" placeholder="Заголовок">
+    <input type="text" id="descInput" placeholder="Описание">
+    <button id="saveBtn" onclick="saveTask()">Добавить задачу</button>
+    <button id="cancelBtn" class="hidden" onclick="resetForm()">Отмена</button>
+
+    <div id="taskList"></div>
+</div>
+
+<div id="detailedView" class="details-box hidden">
+    <h3>Детали задачи</h3>
+    <p><strong>ID:</strong> <span id="viewId"></span></p>
+    <p><strong>Заголовок:</strong> <span id="viewTitle"></span></p>
+    <p><strong>Описание:</strong> <span id="viewDesc"></span></p>
+    <button onclick="closeDetails()">Закрыть</button>
+
+    <div style="margin-top: 15px; padding-top: 10px; border-top: 2px dashed #007bff;">
+        <p><strong>Сервисы:</strong></p>
+        <button onclick="runMailAction('email', 'POST')">SMTP</button>
+        <button onclick="runMailAction('mail/imap', 'GET')">IMAP</button>
+        <button onclick="runMailAction('mail/pop3', 'GET')">POP3</button>
+        <div id="mailStatus"></div>
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://localhost:8000/tasks";
+    const WS_URL = "ws://localhost:8000/ws";
+    let editingTaskId = null;
+
+    // --- ИНИЦИАЛИЗАЦИЯ WEBSOCKET ---
+    const socket = new WebSocket(WS_URL);
+
+    socket.onopen = () => {
+        document.getElementById('wsConnectionStatus').innerText = "🟢 WebSocket подключен";
+        document.getElementById('wsConnectionStatus').style.color = "green";
+    };
+
+    socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log("Получено обновление:", data);
+        if (data.event === "update") {
+            fetchTasks(); // Автоматическое обновление списка у всех
+            const statusDiv = document.getElementById('mailStatus');
+            statusDiv.style.color = "orange";
+            statusDiv.innerText = "Система: " + data.message;
+        }
+    };
+
+    socket.onclose = () => {
+        document.getElementById('wsConnectionStatus').innerText = "🔴 WebSocket отключен";
+        document.getElementById('wsConnectionStatus').style.color = "red";
+    };
+
+    // --- ФУНКЦИИ ПРИЛОЖЕНИЯ ---
+
+    async function fetchTasks() {
+        const res = await fetch(API_URL);
+        const tasks = await res.json();
+        const list = document.getElementById('taskList');
+        list.innerHTML = '';
+        tasks.forEach(task => {
+            list.innerHTML += `
+                <div class="task-item">
+                    <span class="task-title" onclick="viewTaskDetails(${task.id})">${task.title}</span>
+                    <div>
+                        <button onclick="editTask(${task.id}, '${task.title}', '${task.description}')">✏️</button>
+                        <button onclick="deleteTask(${task.id})">🗑️</button>
+                    </div>
+                </div>`;
+        });
+    }
+
+    async function viewTaskDetails(id) {
+        const res = await fetch(`${API_URL}/${id}`);
+        if (res.ok) {
+            const task = await res.json();
+            document.getElementById('viewId').innerText = task.id;
+            document.getElementById('viewTitle').innerText = task.title;
+            document.getElementById('viewDesc').innerText = task.description || "Нет описания";
+            document.getElementById('detailedView').classList.remove('hidden');
+        }
+    }
+
+    async function saveTask() {
+        const title = document.getElementById('titleInput').value;
+        const description = document.getElementById('descInput').value;
+        if (!title) return alert("Введите заголовок");
+
+        const method = editingTaskId ? 'PUT' : 'POST';
+        const url = editingTaskId ? `${API_URL}/${editingTaskId}` : API_URL;
+
+        await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, description })
+        });
+
+        resetForm();
+        // Нам не нужно вызывать fetchTasks() здесь вручную, 
+        // так как сокет пришлет уведомление и fetchTasks() сработает сам.
+    }
+
+    async function deleteTask(id) {
+        if (confirm("Удалить задачу?")) {
+            await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+            closeDetails();
+        }
+    }
+
+    async function runMailAction(path, method) {
+        const taskId = document.getElementById('viewId').innerText;
+        const url = path === 'email' ? `${API_URL}/${taskId}/email` : `http://localhost:8000/${path}`;
+        
+        try {
+            const response = await fetch(url, { method: method });
+            const data = await response.json();
+            const statusDiv = document.getElementById('mailStatus');
+            statusDiv.innerText = data.message || data.info || data.error;
+            statusDiv.style.color = "blue";
+        } catch (e) { alert("Ошибка связи"); }
+    }
+
+    function editTask(id, title, description) {
+        editingTaskId = id;
+        document.getElementById('titleInput').value = title;
+        document.getElementById('descInput').value = description;
+        document.getElementById('saveBtn').innerText = "Сохранить";
+        document.getElementById('cancelBtn').classList.remove('hidden');
+    }
+
+    function resetForm() {
+        editingTaskId = null;
+        document.getElementById('titleInput').value = '';
+        document.getElementById('descInput').value = '';
+        document.getElementById('saveBtn').innerText = "Добавить задачу";
+        document.getElementById('cancelBtn').classList.add('hidden');
+    }
+
+    function closeDetails() { document.getElementById('detailedView').classList.add('hidden'); }
+
+    fetchTasks();
+</script>
+</body>
+</html>

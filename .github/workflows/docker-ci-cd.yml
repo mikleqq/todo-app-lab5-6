@@ -1,0 +1,145 @@
+name: Docker CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BACKEND_IMAGE: ${{ vars.DOCKERHUB_NAMESPACE || github.repository_owner }}/todo-app-backend
+  FRONTEND_IMAGE: ${{ vars.DOCKERHUB_NAMESPACE || github.repository_owner }}/todo-app-frontend
+  NETWORK_NAME: todo-ci-net
+  POSTGRES_VOLUME: todo-ci-postgres-data
+
+jobs:
+  build-test-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        run: docker build -t "${BACKEND_IMAGE}:${GITHUB_SHA}" ./backend
+
+      - name: Build frontend image
+        run: docker build -t "${FRONTEND_IMAGE}:${GITHUB_SHA}" ./frontend
+
+      - name: Create isolated network and volume
+        run: |
+          set -e
+          docker network create "${NETWORK_NAME}" 2>/dev/null || true
+          docker volume create "${POSTGRES_VOLUME}" 2>/dev/null || true
+
+      - name: Start database and auxiliary services
+        run: |
+          set -e
+          docker run -d \
+            --name todo-db \
+            --network "${NETWORK_NAME}" \
+            -e POSTGRES_USER=user \
+            -e POSTGRES_PASSWORD=password \
+            -e POSTGRES_DB=todo_db \
+            -p 5432:5432 \
+            -v "${POSTGRES_VOLUME}:/var/lib/postgresql/data" \
+            --health-cmd="pg_isready -U user -d todo_db" \
+            --health-interval=5s \
+            --health-timeout=5s \
+            --health-retries=20 \
+            postgres:15-alpine
+
+          docker run -d \
+            --name todo-mailhog \
+            --network "${NETWORK_NAME}" \
+            -p 1025:1025 \
+            -p 8025:8025 \
+            mailhog/mailhog:latest
+
+      - name: Wait for database health
+        run: |
+          set -e
+          for _ in $(seq 1 30); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' todo-db 2>/dev/null || echo starting)
+            if [ "$status" = "healthy" ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs todo-db
+          exit 1
+
+      - name: Start application containers
+        run: |
+          set -e
+          docker run -d \
+            --name todo-backend \
+            --network "${NETWORK_NAME}" \
+            -e DATABASE_URL=postgresql://user:password@todo-db:5432/todo_db \
+            -e SMTP_SERVER=todo-mailhog \
+            -e SMTP_PORT=1025 \
+            -p 8000:8000 \
+            "${BACKEND_IMAGE}:${GITHUB_SHA}"
+
+          docker run -d \
+            --name todo-frontend \
+            --network "${NETWORK_NAME}" \
+            -p 8080:80 \
+            "${FRONTEND_IMAGE}:${GITHUB_SHA}"
+
+      - name: Wait for HTTP endpoints
+        run: |
+          set -e
+
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health >/dev/null && \
+               curl -fsS http://localhost:8000/tasks >/dev/null && \
+               curl -fsS http://localhost:8080/ >/dev/null && \
+               curl -fsS http://localhost:8025/ >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Health check failed"
+          docker logs todo-backend
+          docker logs todo-frontend
+          docker logs todo-mailhog
+          exit 1
+
+      - name: Log in to Docker Hub
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push backend image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker tag "${BACKEND_IMAGE}:${GITHUB_SHA}" "${BACKEND_IMAGE}:latest"
+          docker push "${BACKEND_IMAGE}:${GITHUB_SHA}"
+          docker push "${BACKEND_IMAGE}:latest"
+
+      - name: Push frontend image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker tag "${FRONTEND_IMAGE}:${GITHUB_SHA}" "${FRONTEND_IMAGE}:latest"
+          docker push "${FRONTEND_IMAGE}:${GITHUB_SHA}"
+          docker push "${FRONTEND_IMAGE}:latest"
+
+      - name: Cleanup containers, network and volume
+        if: always()
+        run: |
+          docker rm -f todo-frontend todo-backend todo-mailhog todo-db 2>/dev/null || true
+          docker image rm -f "${BACKEND_IMAGE}:${GITHUB_SHA}" "${BACKEND_IMAGE}:latest" "${FRONTEND_IMAGE}:${GITHUB_SHA}" "${FRONTEND_IMAGE}:latest" 2>/dev/null || true
+          docker network rm "${NETWORK_NAME}" 2>/dev/null || true
+          docker volume rm "${POSTGRES_VOLUME}" 2>/dev/null || true
