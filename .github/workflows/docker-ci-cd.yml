@@ -11,8 +11,6 @@ permissions:
   contents: read
 
 env:
-  BACKEND_IMAGE: ${{ vars.DOCKERHUB_NAMESPACE || github.repository_owner }}/todo-app-backend
-  FRONTEND_IMAGE: ${{ vars.DOCKERHUB_NAMESPACE || github.repository_owner }}/todo-app-frontend
   NETWORK_NAME: todo-ci-net
   POSTGRES_VOLUME: todo-ci-postgres-data
 
@@ -23,6 +21,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Resolve Docker image names
+        env:
+          DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          set -e
+          namespace="${DOCKERHUB_NAMESPACE:-${DOCKERHUB_USERNAME:-${GITHUB_REPOSITORY_OWNER}}}"
+          namespace="$(echo "${namespace}" | tr '[:upper:]' '[:lower:]')"
+          echo "BACKEND_IMAGE=docker.io/${namespace}/todo-app-backend" >> "$GITHUB_ENV"
+          echo "FRONTEND_IMAGE=docker.io/${namespace}/todo-app-frontend" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
