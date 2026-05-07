@@ -269,7 +269,7 @@ jobs:
     
     steps:
       - name: Delete Artifacts
-        uses: gha-delete-artifacts@v2
+        uses: gha-delete-artifacts/delete-artifacts@v2
         with:
           age: '1 day'
 
