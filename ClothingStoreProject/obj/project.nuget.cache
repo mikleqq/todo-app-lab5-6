@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "lsKTXjipbts=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\user\\Desktop\\todo-app\\ClothingStoreProject\\ClothingStoreProject.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\user\\.nuget\\packages\\spectre.console\\0.54.0\\spectre.console.0.54.0.nupkg.sha512"
+  ],
+  "logs": []
+}

@@ -2,48 +2,464 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>ToDo App + WebSockets</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToDo App Pro - Modern Task Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; margin: 20px; display: flex; gap: 40px; }
-        .container { min-width: 400px; }
-        .task-item { border-bottom: 1px solid #eee; padding: 10px; display: flex; justify-content: space-between; align-items: center; }
-        .task-title { cursor: pointer; color: blue; text-decoration: underline; flex-grow: 1; }
-        .task-title:hover { color: darkblue; }
-        .details-box { border: 2px solid #007bff; padding: 20px; border-radius: 8px; width: 300px; height: fit-content; background: #f9f9f9; }
-        input { display: block; margin-bottom: 10px; width: 100%; padding: 8px; }
-        button { cursor: pointer; padding: 6px 12px; margin-right: 5px; margin-bottom: 5px; }
-        .hidden { display: none; }
-        #mailStatus { font-size: 13px; margin-top: 10px; }
-        .ws-status { color: gray; font-size: 12px; margin-bottom: 10px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #6366f1;
+            --primary-light: #818cf8;
+            --primary-dark: #4f46e5;
+            --secondary: #ec4899;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #0ea5e9;
+            --dark: #1f2937;
+            --light: #f9fafb;
+            --border: #e5e7eb;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--dark);
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 30px;
+            padding: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .card-custom {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .card-custom:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.15);
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--dark);
+            margin: 0;
+        }
+
+        .header .icon {
+            font-size: 32px;
+            color: var(--primary);
+        }
+
+        .ws-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            background: var(--light);
+            color: var(--dark);
+            margin-bottom: 20px;
+        }
+
+        .ws-status.connected {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .ws-status.disconnected {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #22c55e;
+        }
+
+        .status-dot.disconnected {
+            background: #ef4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .input-group-custom {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+
+        .input-group-custom input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-size: 14px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .input-group-custom input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .btn-primary-custom {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-primary-custom:active {
+            transform: translateY(0);
+        }
+
+        .btn-icon {
+            padding: 8px 12px;
+            background: var(--light);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 16px;
+        }
+
+        .btn-icon:hover {
+            background: var(--primary);
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: var(--light);
+            border-radius: 10px;
+            border-left: 4px solid var(--primary);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .task-item:hover {
+            background: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            border-left-color: var(--primary-light);
+        }
+
+        .task-item.completed {
+            opacity: 0.6;
+            border-left-color: var(--success);
+        }
+
+        .task-title {
+            flex: 1;
+            font-weight: 500;
+            color: var(--dark);
+        }
+
+        .task-item.completed .task-title {
+            text-decoration: line-through;
+            color: #999;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            color: var(--border);
+            margin-bottom: 15px;
+        }
+
+        /* Detail Panel */
+        .detail-panel {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            padding: 25px;
+            max-height: 500px;
+            overflow-y: auto;
+            position: sticky;
+            top: 30px;
+        }
+
+        .detail-panel.hidden {
+            display: none;
+        }
+
+        .detail-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .detail-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .detail-content p {
+            margin: 12px 0;
+            line-height: 1.6;
+        }
+
+        .detail-content strong {
+            color: var(--primary);
+        }
+
+        .divider {
+            margin: 20px 0;
+            border-top: 2px dashed var(--border);
+        }
+
+        .services-section h5 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .service-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .btn-service {
+            padding: 10px 16px;
+            background: var(--light);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+
+        .btn-service:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .mailStatus {
+            margin-top: 12px;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            display: none;
+        }
+
+        .mailStatus.show {
+            display: block;
+        }
+
+        .mailStatus.success {
+            background: #dcfce7;
+            color: #166534;
+            border-left: 3px solid var(--success);
+        }
+
+        .mailStatus.warning {
+            background: #fef3c7;
+            color: #92400e;
+            border-left: 3px solid var(--warning);
+        }
+
+        .mailStatus.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border-left: 3px solid var(--danger);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                gap: 20px;
+                padding: 15px;
+            }
+
+            .detail-panel {
+                position: relative;
+                top: auto;
+                max-height: none;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .input-group-custom {
+                flex-direction: column;
+            }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>Мои задачи</h2>
-    <div id="wsConnectionStatus" class="ws-status">Подключение к WebSocket...</div>
-    
-    <input type="text" id="titleInput" placeholder="Заголовок">
-    <input type="text" id="descInput" placeholder="Описание">
-    <button id="saveBtn" onclick="saveTask()">Добавить задачу</button>
-    <button id="cancelBtn" class="hidden" onclick="resetForm()">Отмена</button>
+<div class="main-container">
+    <!-- Main Content -->
+    <div class="card-custom">
+        <div class="header">
+            <i class="fas fa-tasks icon"></i>
+            <h1>Task Manager Pro</h1>
+        </div>
 
-    <div id="taskList"></div>
-</div>
+        <div id="wsConnectionStatus" class="ws-status">
+            <span class="status-dot disconnected"></span>
+            <span>Connecting to WebSocket...</span>
+        </div>
 
-<div id="detailedView" class="details-box hidden">
-    <h3>Детали задачи</h3>
-    <p><strong>ID:</strong> <span id="viewId"></span></p>
-    <p><strong>Заголовок:</strong> <span id="viewTitle"></span></p>
-    <p><strong>Описание:</strong> <span id="viewDesc"></span></p>
-    <button onclick="closeDetails()">Закрыть</button>
+        <div class="input-group-custom">
+            <input type="text" id="titleInput" placeholder="Task title..." maxlength="100">
+            <input type="text" id="descInput" placeholder="Description..." maxlength="200">
+            <button class="btn-primary-custom" id="saveBtn" onclick="saveTask()">
+                <i class="fas fa-plus"></i> Add
+            </button>
+            <button class="btn-icon hidden" id="cancelBtn" onclick="resetForm()" title="Cancel">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
 
-    <div style="margin-top: 15px; padding-top: 10px; border-top: 2px dashed #007bff;">
-        <p><strong>Сервисы:</strong></p>
-        <button onclick="runMailAction('email', 'POST')">SMTP</button>
-        <button onclick="runMailAction('mail/imap', 'GET')">IMAP</button>
-        <button onclick="runMailAction('mail/pop3', 'GET')">POP3</button>
-        <div id="mailStatus"></div>
+        <div id="taskList" class="task-list">
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <p>No tasks yet. Create your first task!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail Panel -->
+    <div id="detailedView" class="detail-panel hidden">
+        <div class="detail-header">
+            <i class="fas fa-info-circle" style="color: var(--primary);"></i>
+            <h3>Task Details</h3>
+        </div>
+
+        <div class="detail-content">
+            <p><strong>ID:</strong> <span id="viewId"></span></p>
+            <p><strong>Title:</strong> <span id="viewTitle"></span></p>
+            <p><strong>Description:</strong> <span id="viewDesc"></span></p>
+
+            <button class="btn-service" onclick="closeDetails()" style="width: 100%; margin-top: 15px;">
+                <i class="fas fa-arrow-left"></i> Back
+            </button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="services-section">
+            <h5><i class="fas fa-envelope"></i> Email Services</h5>
+            <div class="service-buttons">
+                <button class="btn-service" onclick="runMailAction('email', 'POST')">
+                    <i class="fas fa-envelope"></i> Send via SMTP
+                </button>
+                <button class="btn-service" onclick="runMailAction('mail/imap', 'GET')">
+                    <i class="fas fa-inbox"></i> Check IMAP
+                </button>
+                <button class="btn-service" onclick="runMailAction('mail/pop3', 'GET')">
+                    <i class="fas fa-download"></i> Check POP3
+                </button>
+                <div id="mailStatus" class="mailStatus"></div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -51,119 +467,253 @@
     const API_URL = "http://localhost:8000/tasks";
     const WS_URL = "ws://localhost:8000/ws";
     let editingTaskId = null;
+    let socket = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
 
-    // --- ИНИЦИАЛИЗАЦИЯ WEBSOCKET ---
-    const socket = new WebSocket(WS_URL);
+    // --- WEBSOCKET CONNECTION ---
+    function connectWebSocket() {
+        socket = new WebSocket(WS_URL);
 
-    socket.onopen = () => {
-        document.getElementById('wsConnectionStatus').innerText = "🟢 WebSocket подключен";
-        document.getElementById('wsConnectionStatus').style.color = "green";
-    };
+        socket.onopen = () => {
+            const status = document.getElementById('wsConnectionStatus');
+            status.innerHTML = '<span class="status-dot connected"></span><span>Connected to real-time updates</span>';
+            status.classList.add('connected');
+            status.classList.remove('disconnected');
+            reconnectAttempts = 0;
+            console.log('WebSocket connected');
+        };
 
-    socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        console.log("Получено обновление:", data);
-        if (data.event === "update") {
-            fetchTasks(); // Автоматическое обновление списка у всех
-            const statusDiv = document.getElementById('mailStatus');
-            statusDiv.style.color = "orange";
-            statusDiv.innerText = "Система: " + data.message;
+        socket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.event === "update") {
+                    fetchTasks();
+                    showNotification(data.message || "Changes synced", "info");
+                }
+            } catch (e) {
+                console.error('WebSocket message error:', e);
+            }
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            updateConnectionStatus('error');
+        };
+
+        socket.onclose = () => {
+            const status = document.getElementById('wsConnectionStatus');
+            status.innerHTML = '<span class="status-dot disconnected"></span><span>Disconnected - Reconnecting...</span>';
+            status.classList.remove('connected');
+            status.classList.add('disconnected');
+            
+            if (reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++;
+                setTimeout(connectWebSocket, 3000 * reconnectAttempts);
+            }
+        };
+    }
+
+    function updateConnectionStatus(status) {
+        const statusEl = document.getElementById('wsConnectionStatus');
+        if (status === 'connected') {
+            statusEl.innerHTML = '<span class="status-dot connected"></span><span>Connected</span>';
+            statusEl.classList.add('connected');
+            statusEl.classList.remove('disconnected');
+        } else if (status === 'error') {
+            statusEl.innerHTML = '<span class="status-dot disconnected"></span><span>Connection Error</span>';
+            statusEl.classList.add('disconnected');
+            statusEl.classList.remove('connected');
         }
-    };
+    }
 
-    socket.onclose = () => {
-        document.getElementById('wsConnectionStatus').innerText = "🔴 WebSocket отключен";
-        document.getElementById('wsConnectionStatus').style.color = "red";
-    };
+    // --- NOTIFICATION SYSTEM ---
+    function showNotification(message, type = 'success') {
+        const notification = document.createElement('div');
+        notification.className = 'notification';
+        const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+        notification.innerHTML = `<strong>${icons[type]}</strong> ${message}`;
+        notification.style.borderLeft = `4px solid var(--${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'warning'})`;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => notification.remove(), 3000);
+    }
 
-    // --- ФУНКЦИИ ПРИЛОЖЕНИЯ ---
-
+    // --- FETCH AND DISPLAY TASKS ---
     async function fetchTasks() {
-        const res = await fetch(API_URL);
-        const tasks = await res.json();
-        const list = document.getElementById('taskList');
-        list.innerHTML = '';
-        tasks.forEach(task => {
-            list.innerHTML += `
+        try {
+            const res = await fetch(API_URL);
+            const tasks = await res.json();
+            const list = document.getElementById('taskList');
+            
+            if (tasks.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <p>No tasks yet. Create your first task!</p>
+                    </div>`;
+                return;
+            }
+
+            list.innerHTML = tasks.map(task => `
                 <div class="task-item">
-                    <span class="task-title" onclick="viewTaskDetails(${task.id})">${task.title}</span>
-                    <div>
-                        <button onclick="editTask(${task.id}, '${task.title}', '${task.description}')">✏️</button>
-                        <button onclick="deleteTask(${task.id})">🗑️</button>
+                    <div class="task-title" onclick="viewTaskDetails(${task.id})">
+                        <strong>${escapeHtml(task.title)}</strong>
+                        ${task.description ? `<br><small>${escapeHtml(task.description)}</small>` : ''}
                     </div>
-                </div>`;
-        });
+                    <div class="task-actions">
+                        <button class="btn-icon" onclick="editTask(${task.id}, '${escapeHtml(task.title)}', '${escapeHtml(task.description || '')}')" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn-icon" onclick="deleteTask(${task.id})" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>`).join('');
+        } catch (error) {
+            console.error('Error fetching tasks:', error);
+            showNotification('Failed to load tasks', 'error');
+        }
     }
 
+    // --- VIEW TASK DETAILS ---
     async function viewTaskDetails(id) {
-        const res = await fetch(`${API_URL}/${id}`);
-        if (res.ok) {
-            const task = await res.json();
-            document.getElementById('viewId').innerText = task.id;
-            document.getElementById('viewTitle').innerText = task.title;
-            document.getElementById('viewDesc').innerText = task.description || "Нет описания";
-            document.getElementById('detailedView').classList.remove('hidden');
+        try {
+            const res = await fetch(`${API_URL}/${id}`);
+            if (res.ok) {
+                const task = await res.json();
+                document.getElementById('viewId').innerText = task.id;
+                document.getElementById('viewTitle').innerText = escapeHtml(task.title);
+                document.getElementById('viewDesc').innerText = escapeHtml(task.description || 'No description');
+                document.getElementById('detailedView').classList.remove('hidden');
+            }
+        } catch (error) {
+            console.error('Error fetching task:', error);
+            showNotification('Failed to load task details', 'error');
         }
     }
 
+    // --- SAVE OR UPDATE TASK ---
     async function saveTask() {
-        const title = document.getElementById('titleInput').value;
-        const description = document.getElementById('descInput').value;
-        if (!title) return alert("Введите заголовок");
+        const title = document.getElementById('titleInput').value.trim();
+        const description = document.getElementById('descInput').value.trim();
+        
+        if (!title) {
+            showNotification('Please enter a task title', 'warning');
+            return;
+        }
 
-        const method = editingTaskId ? 'PUT' : 'POST';
-        const url = editingTaskId ? `${API_URL}/${editingTaskId}` : API_URL;
+        try {
+            const method = editingTaskId ? 'PUT' : 'POST';
+            const url = editingTaskId ? `${API_URL}/${editingTaskId}` : API_URL;
+            const response = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, description })
+            });
 
-        await fetch(url, {
-            method: method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, description })
-        });
-
-        resetForm();
-        // Нам не нужно вызывать fetchTasks() здесь вручную, 
-        // так как сокет пришлет уведомление и fetchTasks() сработает сам.
-    }
-
-    async function deleteTask(id) {
-        if (confirm("Удалить задачу?")) {
-            await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-            closeDetails();
+            if (response.ok) {
+                showNotification(editingTaskId ? 'Task updated' : 'Task created', 'success');
+                resetForm();
+            } else {
+                showNotification('Failed to save task', 'error');
+            }
+        } catch (error) {
+            console.error('Error saving task:', error);
+            showNotification('Error saving task', 'error');
         }
     }
 
+    // --- DELETE TASK ---
+    async function deleteTask(id) {
+        if (!confirm('Are you sure you want to delete this task?')) return;
+
+        try {
+            const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+            if (response.ok) {
+                showNotification('Task deleted', 'success');
+                closeDetails();
+                fetchTasks();
+            }
+        } catch (error) {
+            console.error('Error deleting task:', error);
+            showNotification('Failed to delete task', 'error');
+        }
+    }
+
+    // --- MAIL ACTIONS ---
     async function runMailAction(path, method) {
         const taskId = document.getElementById('viewId').innerText;
         const url = path === 'email' ? `${API_URL}/${taskId}/email` : `http://localhost:8000/${path}`;
+        const mailStatus = document.getElementById('mailStatus');
         
         try {
+            mailStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            mailStatus.classList.add('show', 'warning');
+            
             const response = await fetch(url, { method: method });
             const data = await response.json();
-            const statusDiv = document.getElementById('mailStatus');
-            statusDiv.innerText = data.message || data.info || data.error;
-            statusDiv.style.color = "blue";
-        } catch (e) { alert("Ошибка связи"); }
+            
+            if (response.ok) {
+                mailStatus.classList.remove('warning');
+                mailStatus.classList.add('success');
+                mailStatus.innerHTML = `<i class="fas fa-check"></i> ${data.message || data.info}`;
+            } else {
+                mailStatus.classList.remove('warning');
+                mailStatus.classList.add('error');
+                mailStatus.innerHTML = `<i class="fas fa-exclamation"></i> ${data.error || 'Error processing request'}`;
+            }
+        } catch (error) {
+            console.error('Mail action error:', error);
+            mailStatus.classList.remove('warning');
+            mailStatus.classList.add('error');
+            mailStatus.innerHTML = '<i class="fas fa-exclamation"></i> Connection error';
+        }
     }
 
+    // --- EDIT TASK ---
     function editTask(id, title, description) {
         editingTaskId = id;
         document.getElementById('titleInput').value = title;
         document.getElementById('descInput').value = description;
-        document.getElementById('saveBtn').innerText = "Сохранить";
+        document.getElementById('saveBtn').innerHTML = '<i class="fas fa-save"></i> Update';
         document.getElementById('cancelBtn').classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
+    // --- RESET FORM ---
     function resetForm() {
         editingTaskId = null;
         document.getElementById('titleInput').value = '';
         document.getElementById('descInput').value = '';
-        document.getElementById('saveBtn').innerText = "Добавить задачу";
+        document.getElementById('saveBtn').innerHTML = '<i class="fas fa-plus"></i> Add';
         document.getElementById('cancelBtn').classList.add('hidden');
     }
 
-    function closeDetails() { document.getElementById('detailedView').classList.add('hidden'); }
+    // --- CLOSE DETAILS ---
+    function closeDetails() {
+        document.getElementById('detailedView').classList.add('hidden');
+        document.getElementById('mailStatus').classList.remove('show', 'success', 'error', 'warning');
+        resetForm();
+    }
 
-    fetchTasks();
+    // --- UTILITY FUNCTIONS ---
+    function escapeHtml(text) {
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    // --- KEYBOARD SHORTCUTS ---
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeDetails();
+        if (e.ctrlKey && e.key === 'Enter' && document.activeElement.id !== 'titleInput') saveTask();
+    });
+
+    // --- INITIALIZATION ---
+    document.addEventListener('DOMContentLoaded', () => {
+        connectWebSocket();
+        fetchTasks();
+    });
 </script>
 </body>
 </html>

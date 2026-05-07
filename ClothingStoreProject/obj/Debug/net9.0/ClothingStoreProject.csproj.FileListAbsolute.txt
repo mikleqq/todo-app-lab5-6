@@ -1,0 +1,17 @@
+C:\Users\user\Desktop\ClothingStoreProject\bin\Debug\net9.0\ClothingStoreProject.exe
+C:\Users\user\Desktop\ClothingStoreProject\bin\Debug\net9.0\ClothingStoreProject.deps.json
+C:\Users\user\Desktop\ClothingStoreProject\bin\Debug\net9.0\ClothingStoreProject.runtimeconfig.json
+C:\Users\user\Desktop\ClothingStoreProject\bin\Debug\net9.0\ClothingStoreProject.dll
+C:\Users\user\Desktop\ClothingStoreProject\bin\Debug\net9.0\ClothingStoreProject.pdb
+C:\Users\user\Desktop\ClothingStoreProject\obj\Debug\net9.0\ClothingStoreProject.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\user\Desktop\ClothingStoreProject\obj\Debug\net9.0\ClothingStoreProject.AssemblyInfoInputs.cache
+C:\Users\user\Desktop\ClothingStoreProject\obj\Debug\net9.0\ClothingStoreProject.AssemblyInfo.cs
+C:\Users\user\Desktop\ClothingStoreProject\obj\Debug\net9.0\ClothingStoreProject.csproj.CoreCompileInputs.cache
+C:\Users\user\Desktop\ClothingStoreProject\obj\Debug\net9.0\ClothingStoreProject.dll
+C:\Users\user\Desktop\ClothingStoreProject\obj\Debug\net9.0\refint\ClothingStoreProject.dll
+C:\Users\user\Desktop\ClothingStoreProject\obj\Debug\net9.0\ClothingStoreProject.pdb
+C:\Users\user\Desktop\ClothingStoreProject\obj\Debug\net9.0\ClothingStoreProject.genruntimeconfig.cache
+C:\Users\user\Desktop\ClothingStoreProject\obj\Debug\net9.0\ref\ClothingStoreProject.dll
+C:\Users\user\Desktop\ClothingStoreProject\obj\Debug\net9.0\ClothingStoreProject.csproj.AssemblyReference.cache
+C:\Users\user\Desktop\ClothingStoreProject\bin\Debug\net9.0\Spectre.Console.dll
+C:\Users\user\Desktop\ClothingStoreProject\obj\Debug\net9.0\Clothing.D47A014E.Up2Date
